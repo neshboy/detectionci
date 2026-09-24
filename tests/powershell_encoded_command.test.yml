@@ -1,0 +1,31 @@
+rule: ../rules/powershell_encoded_command.yml
+cases:
+  - name: powershell.exe with -enc flag should match
+    should_match: true
+    event:
+      Image: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+      CommandLine: powershell.exe -enc SQBFAFgA...
+
+  - name: pwsh.exe with -EncodedCommand should match
+    should_match: true
+    event:
+      Image: C:\Program Files\PowerShell\7\pwsh.exe
+      CommandLine: pwsh.exe -EncodedCommand SQBFAFgA...
+
+  - name: plain powershell invocation with no encoded flag should not match
+    should_match: false
+    event:
+      Image: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+      CommandLine: powershell.exe -Command Get-Process
+
+  - name: encoded flag on a non-powershell binary should not match
+    should_match: false
+    event:
+      Image: C:\Windows\System32\cmd.exe
+      CommandLine: cmd.exe -enc SQBFAFgA...
+
+  - name: approved deployment script is filtered out
+    should_match: false
+    event:
+      Image: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+      CommandLine: powershell.exe -enc SQBFAFgA... ApprovedDeploymentScript.ps1

@@ -1,0 +1,38 @@
+rule: ../rules/windows_failed_logon_burst.yml
+cases:
+  - name: network logon failure (LogonType 3) should match
+    should_match: true
+    event:
+      EventID: 4625
+      LogonType: 3
+      TargetUserName: jdoe
+      IpAddress: 10.1.2.3
+
+  - name: RDP logon failure (LogonType 10) should match
+    should_match: true
+    event:
+      EventID: 4625
+      LogonType: 10
+      TargetUserName: jdoe
+      IpAddress: 203.0.113.9
+
+  - name: successful logon (wrong EventID) should not match
+    should_match: false
+    event:
+      EventID: 4624
+      LogonType: 3
+      TargetUserName: jdoe
+
+  - name: interactive logon failure (wrong LogonType) should not match
+    should_match: false
+    event:
+      EventID: 4625
+      LogonType: 2
+      TargetUserName: jdoe
+
+  - name: known noisy health-check account is filtered out
+    should_match: false
+    event:
+      EventID: 4625
+      LogonType: 3
+      TargetUserName: svc_healthcheck_prod

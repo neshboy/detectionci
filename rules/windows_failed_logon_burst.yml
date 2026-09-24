@@ -1,0 +1,32 @@
+title: Windows Failed Logon With Suspicious Logon Type (Simplified)
+id: 6f2b6b1a-6e2b-4b8a-9b7a-1e5d9a7c2b10
+status: experimental
+description: >
+  Detects a single failed logon event (Event ID 4625) using a network or
+  remote-desktop logon type, excluding a known noisy health-check account.
+  This is a SIMPLIFIED, single-event stand-in for the classic "failed logon
+  burst" detection: a real burst detector counts repeated 4625 events for
+  the same account/source within a time window (Sigma's `| count() > N`
+  plus a `timeframe`), which DetectionCI does not evaluate today -- see
+  README Limitations.
+references:
+  - https://github.com/SigmaHQ/sigma
+author: DetectionCI contributors
+date: 2026/09/24
+level: medium
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_failed_logon:
+    EventID: 4625
+  selection_remote_logon_type:
+    LogonType:
+      - 3
+      - 10
+  filter_known_healthcheck_account:
+    TargetUserName|contains: 'svc_healthcheck'
+  condition: selection_failed_logon and selection_remote_logon_type and not filter_known_healthcheck_account
+falsepositives:
+  - Legitimate remote administration with mistyped credentials
+  - Load balancers or monitoring probes against network logon endpoints

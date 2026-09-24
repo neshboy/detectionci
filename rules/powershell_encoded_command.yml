@@ -1,0 +1,30 @@
+title: Suspicious PowerShell EncodedCommand Execution
+id: 9a4a6f3e-2b1a-4a9d-9d3e-8b7c6a5f4e21
+status: experimental
+description: >
+  Detects PowerShell process creation with an encoded/obfuscated command
+  line (-enc / -EncodedCommand), a common technique for hiding malicious
+  payloads from simple string-based logging and analysis.
+references:
+  - https://github.com/SigmaHQ/sigma
+author: DetectionCI contributors
+date: 2026/09/24
+level: high
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_image:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_encoded_flag:
+    CommandLine|contains:
+      - '-enc'
+      - '-EncodedCommand'
+  filter_approved_deployment_script:
+    CommandLine|contains: 'ApprovedDeploymentScript.ps1'
+  condition: selection_image and selection_encoded_flag and not filter_approved_deployment_script
+falsepositives:
+  - Legitimate admin or deployment scripts that pass encoded arguments
+  - Software packaging tools that wrap PowerShell invocations

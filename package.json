@@ -1,0 +1,49 @@
+{
+  "name": "detectionci",
+  "version": "0.1.0",
+  "description": "A CI regression-testing framework for Sigma detection rules: run your SOC's Sigma rules against labeled sample log events and catch false positives/negatives before they ship.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "detectionci": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "rules",
+    "tests",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "sigma",
+    "detection-engineering",
+    "siem",
+    "security",
+    "ci",
+    "testing"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "glob": "^11.0.0",
+    "yaml": "^2.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
