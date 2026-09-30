@@ -1,3 +1,4 @@
+import { Script, createContext } from "node:vm";
 import type { FieldMap, LogEvent, SelectionDefinition } from "./types.js";
 import { wildcardToRegExp } from "./wildcard.js";
 
@@ -5,6 +6,36 @@ import { wildcardToRegExp } from "./wildcard.js";
 const SUPPORTED_MODIFIERS = new Set(["contains", "startswith", "endswith", "re", "all"]);
 
 export class UnsupportedSigmaFeatureError extends Error {}
+
+/** Thrown when a `|re` pattern takes too long to evaluate (likely catastrophic backtracking). */
+export class SigmaRegexTimeoutError extends Error {}
+
+/** Max time a single `|re` pattern is allowed to run against one field value. */
+const REGEX_MATCH_TIMEOUT_MS = 250;
+
+/**
+ * Run `pattern.test(value)` inside a bounded-time VM context so a rule author's regex
+ * (paired with an adversarial test/log event) can't hang the process with catastrophic
+ * backtracking. Node's regex engine honors `vm` script timeouts, so this turns an
+ * indefinite hang into a clear, bounded error.
+ */
+function testRegexWithTimeout(pattern: RegExp, value: string): boolean {
+  try {
+    const script = new Script("__pattern__.test(__value__)");
+    const context = createContext({ __pattern__: pattern, __value__: value });
+    return Boolean(script.runInContext(context, { timeout: REGEX_MATCH_TIMEOUT_MS }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("Script execution timed out")) {
+      throw err;
+    }
+    throw new SigmaRegexTimeoutError(
+      `The |re pattern ${pattern} took longer than ${REGEX_MATCH_TIMEOUT_MS}ms to evaluate ` +
+        "(likely catastrophic backtracking). Rewrite the pattern to avoid nested/overlapping " +
+        "quantifiers (e.g. (a+)+, (a|a)*).",
+    );
+  }
+}
 
 /** Look up a (possibly dotted) field path in a log event, e.g. "Event.System.EventID". */
 export function getFieldValue(event: LogEvent, fieldPath: string): unknown {
@@ -42,7 +73,7 @@ function matchSingleValue(fieldValue: unknown, pattern: unknown, modifiers: stri
   const patternStr = String(pattern);
 
   if (modifiers.includes("re")) {
-    return new RegExp(patternStr, "i").test(fieldStr);
+    return testRegexWithTimeout(new RegExp(patternStr, "i"), fieldStr);
   }
   if (modifiers.includes("contains")) {
     return fieldStr.toLowerCase().includes(patternStr.toLowerCase());
@@ -70,7 +101,14 @@ function matchFieldValues(fieldValue: unknown, spec: unknown, modifiers: string[
 
 /** Evaluate one field-map (all keys AND-ed together) against an event. */
 export function matchFieldMap(event: LogEvent, fieldMap: FieldMap): boolean {
-  for (const [key, spec] of Object.entries(fieldMap)) {
+  const entries = Object.entries(fieldMap);
+  if (entries.length === 0) {
+    // An empty field map has no conditions to satisfy. Treat it the same way
+    // matchSelection() treats an empty list: never vacuously true, so a
+    // mistyped/empty selection body can't silently match every event.
+    return false;
+  }
+  for (const [key, spec] of entries) {
     const { field, modifiers } = parseFieldKey(key);
     const fieldValue = getFieldValue(event, field);
     if (!matchFieldValues(fieldValue, spec, modifiers)) {

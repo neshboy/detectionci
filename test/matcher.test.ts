@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchSelection, UnsupportedSigmaFeatureError } from "../src/matcher.js";
+import { matchSelection, SigmaRegexTimeoutError, UnsupportedSigmaFeatureError } from "../src/matcher.js";
 
 describe("matchSelection: exact match", () => {
   it("matches when field value equals the pattern", () => {
@@ -106,6 +106,12 @@ describe("matchSelection: |re and |all modifiers", () => {
     expect(matchSelection({ CommandLine: "foo -enc AAAA" }, def)).toBe(true);
     expect(matchSelection({ CommandLine: "foo -enc only" }, def)).toBe(false);
   });
+
+  it("|re bounds catastrophic backtracking instead of hanging", () => {
+    const def = { "CommandLine|re": "^(a+)+$" };
+    const evilValue = `${"a".repeat(40)}!`;
+    expect(() => matchSelection({ CommandLine: evilValue }, def)).toThrow(SigmaRegexTimeoutError);
+  });
 });
 
 describe("matchSelection: list-of-maps selections (OR across maps)", () => {
@@ -113,6 +119,16 @@ describe("matchSelection: list-of-maps selections (OR across maps)", () => {
     const def = [{ EventID: 4625, LogonType: 3 }, { EventID: 4625, LogonType: 10 }];
     expect(matchSelection({ EventID: 4625, LogonType: 10 }, def)).toBe(true);
     expect(matchSelection({ EventID: 4625, LogonType: 2 }, def)).toBe(false);
+  });
+});
+
+describe("matchSelection: empty field map never vacuously matches", () => {
+  it("returns false for an empty single-map selection", () => {
+    expect(matchSelection({ EventID: 4625 }, {})).toBe(false);
+  });
+
+  it("returns false for a list entry that is an empty map", () => {
+    expect(matchSelection({ EventID: 4625 }, [{}])).toBe(false);
   });
 });
 
